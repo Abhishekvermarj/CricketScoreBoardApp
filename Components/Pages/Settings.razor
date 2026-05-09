@@ -46,6 +46,24 @@
         </div>
     </div>
 
+    <div class="section-label mt-2">Match Rules</div>
+    <div class="card" style="padding:0;">
+        <div class="settings-item">
+            <div>
+                <div class="settings-label">Single Player Batting</div>
+                <div class="settings-desc">Allow match with only one active batter</div>
+            </div>
+            <div class="toggle-switch @(_settings.SinglePlayerBatting ? "active" : "")" @onclick="ToggleSinglePlayerBatting"></div>
+        </div>
+        <div class="settings-item">
+            <div>
+                <div class="settings-label">Wide Ball Run</div>
+                <div class="settings-desc">Add 1 run automatically for wide ball</div>
+            </div>
+            <div class="toggle-switch @(_settings.WideBallRunEnabled ? "active" : "")" @onclick="ToggleWideBallRun"></div>
+        </div>
+    </div>
+
     <div class="section-label mt-2">Navigation</div>
     <div class="card" style="padding:0;">
         <a href="/teams" class="settings-item" style="text-decoration:none;color:inherit;">
@@ -97,6 +115,18 @@
     private async Task ToggleSuperOver()
     {
         _settings.SuperOverEnabled = !_settings.SuperOverEnabled;
+        await SaveSettings();
+    }
+
+    private async Task ToggleSinglePlayerBatting()
+    {
+        _settings.SinglePlayerBatting = !_settings.SinglePlayerBatting;
+        await SaveSettings();
+    }
+
+    private async Task ToggleWideBallRun()
+    {
+        _settings.WideBallRunEnabled = !_settings.WideBallRunEnabled;
         await SaveSettings();
     }
 

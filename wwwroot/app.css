@@ -1372,6 +1372,7 @@ select.form-control {
 .app-root {
     min-height: 100dvh;
     background: var(--bg-primary);
+    color: var(--text-primary);
 }
 
 .app-main {

@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject ISettingsService SettingsService
+@implements IDisposable
 
 <div class="app-root @(_darkMode ? "" : "light-theme")">
     <CricketScoreboardApp.Components.Shared.ToastComponent />
@@ -51,5 +52,21 @@
     {
         var settings = await SettingsService.GetSettingsAsync();
         _darkMode = settings.DarkMode;
+        SettingsService.OnSettingsChanged += OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            var settings = await SettingsService.GetSettingsAsync();
+            _darkMode = settings.DarkMode;
+            StateHasChanged();
+        });
+    }
+
+    void IDisposable.Dispose()
+    {
+        SettingsService.OnSettingsChanged -= OnSettingsChanged;
     }
 }

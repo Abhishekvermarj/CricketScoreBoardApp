@@ -9,6 +9,7 @@ public class Player
     public PlayerRole Role { get; set; } = PlayerRole.Batter;
     public BattingStyle BattingStyle { get; set; } = BattingStyle.RightHanded;
     public BowlingStyle BowlingStyle { get; set; } = BowlingStyle.None;
+    [System.Obsolete("Team assignment moved to Match selection. Players are independent.", true)]
     public string? TeamId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 

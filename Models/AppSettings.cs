@@ -9,4 +9,6 @@ public class AppSettings
     public bool SoundEnabled { get; set; } = false;
     public bool VibrationEnabled { get; set; } = true;
     public string AppVersion { get; set; } = "1.0.0";
+    public bool SinglePlayerBatting { get; set; } = false;
+    public bool WideBallRunEnabled { get; set; } = true;
 }

@@ -26,10 +26,13 @@ public class PlayerService : IPlayerService
         return players.FirstOrDefault(p => p.Id == id);
     }
 
+    [System.Obsolete("Players are now independent. Use GetAllPlayersAsync() instead.", true)]
     public async Task<List<Player>> GetPlayersByTeamIdAsync(string teamId)
     {
+        // This method is deprecated but kept for backward compatibility
+        // Players are now selected during match setup, not assigned to teams permanently
         var players = await GetAllPlayersAsync();
-        return players.Where(p => p.TeamId == teamId).ToList();
+        return players.Where(p => string.IsNullOrEmpty(p.TeamId)).ToList();
     }
 
     public async Task<List<Player>> GetPlayersByIdsAsync(List<string> ids)

@@ -9,6 +9,8 @@ public class SettingsService : ISettingsService
     private readonly ILocalStorageService _storage;
     private AppSettings? _cache;
 
+    public event Action? OnSettingsChanged;
+
     public SettingsService(ILocalStorageService storage)
     {
         _storage = storage;
@@ -24,5 +26,6 @@ public class SettingsService : ISettingsService
     {
         _cache = settings;
         await _storage.SaveAsync(StorageConstants.SettingsFile, settings);
+        OnSettingsChanged?.Invoke();
     }
 }
