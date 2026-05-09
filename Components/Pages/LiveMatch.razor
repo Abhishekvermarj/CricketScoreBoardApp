@@ -1,0 +1,633 @@
+@page "/livematch"
+@inject LiveMatchState LiveMatchState
+@inject IMatchService MatchService
+@inject IPlayerService PlayerService
+@inject NavigationManager Nav
+@inject IToastService Toast
+@implements IDisposable
+
+<div class="page-container">
+    @if (_match == null)
+    {
+        <EmptyState Emoji="🏏" Title="No live match"
+                    Message="Start a new match to begin scoring."
+                    ShowAction="true" ActionText="New Match" OnAction="GoToNewMatch" />
+    }
+    else if (_match.Status == MatchStatus.Completed || _match.Status == MatchStatus.Abandoned)
+    {
+        <div style="text-align:center;padding:2rem;">
+            <h2>Match @_match.StatusDisplay</h2>
+            <p class="mt-1" style="color:var(--accent);font-weight:700;">@_match.Result.ResultSummary</p>
+            <button class="btn btn-primary btn-lg mt-2" @onclick='() => Nav.NavigateTo($"/matchdetail/{_match.Id}")'>
+                View Scorecard
+            </button>
+        </div>
+    }
+    else if (_match.Status == MatchStatus.InningsBreak)
+    {
+        <div class="innings-break-notice">
+            <div class="break-emoji">🔄</div>
+            <h2>Innings Break</h2>
+            <p>@GetBattingTeamName(1) scored @_match.FirstInnings?.ScoreDisplay in @_match.FirstInnings?.OversDisplay overs</p>
+            <div class="target-display">Target: @_match.SecondInnings?.Target</div>
+
+            <div class="card mt-2">
+                <h3 class="mb-1">Opening Batters (@GetBattingTeamName(2))</h3>
+
+                <div class="form-group">
+                    <label class="form-label">Striker</label>
+                    <select class="form-control" @bind="_newStrikerId">
+                        <option value="">Select striker</option>
+                        @foreach (var p in _secondInningsBatters)
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Non-Striker</label>
+                    <select class="form-control" @bind="_newNonStrikerId">
+                        <option value="">Select non-striker</option>
+                        @foreach (var p in _secondInningsBatters.Where(p => p.Id != _newStrikerId))
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <h3 class="mb-1">Opening Bowler (@GetBowlingTeamName(2))</h3>
+
+                <div class="form-group">
+                    <label class="form-label">Bowler</label>
+                    <select class="form-control" @bind="_newBowlerId">
+                        <option value="">Select bowler</option>
+                        @foreach (var p in _secondInningsBowlers)
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="validation-message mb-1">@_error</div>
+            }
+
+            <button class="btn btn-primary btn-block btn-lg" @onclick="StartSecondInnings">
+                Start 2nd Innings 🏏
+            </button>
+        </div>
+    }
+    else
+    {
+        var innings = _match.CurrentInnings;
+
+        if (innings != null)
+        {
+            <div class="score-display">
+                <div class="team-name-display">@GetCurrentBattingTeamName()</div>
+                <div class="score-big">@innings.TotalRuns/@innings.TotalWickets</div>
+                <div class="score-overs">@innings.OversDisplay / @_match.TotalOvers overs</div>
+
+                @if (_match.CurrentInningsNumber == 2 && innings.Target > 0)
+                {
+                    var needed = innings.Target - innings.TotalRuns;
+                    var ballsLeft = (_match.TotalOvers * 6) - innings.TotalBalls;
+
+                    <div class="score-target">
+                        Need @needed from @ballsLeft balls
+                    </div>
+                }
+
+                @if (innings.TotalBalls > 0)
+                {
+                    var rr = Math.Round((double)innings.TotalRuns / innings.TotalBalls * 6, 2);
+                    <div class="score-rr">CRR: @rr</div>
+                }
+            </div>
+
+            var currentOver = innings.Overs.LastOrDefault();
+
+            @if (currentOver != null && currentOver.Balls.Any())
+            {
+                <div class="over-display">
+                    <span class="over-label">This Over</span>
+
+                    @foreach (var ball in currentOver.Balls)
+                    {
+                        var css = ball.IsWicket ? "wicket" :
+                            ball.ExtraType == ExtraType.Wide || ball.ExtraType == ExtraType.NoBall ? "wide" :
+                            ball.IsSix ? "six" :
+                            ball.IsBoundary ? "four" :
+                            ball.TotalRuns == 0 ? "dot" : "run";
+
+                        <div class="ball-indicator @css">@ball.DisplayText</div>
+                    }
+                </div>
+            }
+
+            var striker = innings.BattingScorecard.FirstOrDefault(b => b.PlayerId == innings.CurrentStrikerId);
+            var nonStriker = innings.BattingScorecard.FirstOrDefault(b => b.PlayerId == innings.CurrentNonStrikerId);
+
+            <div class="player-info-bar">
+                <div class="player-info-card striker">
+                    <div class="player-label">Striker</div>
+                    <div class="player-name">@(striker?.PlayerName ?? "—") *</div>
+                    <div class="player-stats">@(striker?.RunsScored ?? 0) (@(striker?.BallsFaced ?? 0))</div>
+                </div>
+
+                <div class="player-info-card">
+                    <div class="player-label">Non-Striker</div>
+                    <div class="player-name">@(nonStriker?.PlayerName ?? "—")</div>
+                    <div class="player-stats">@(nonStriker?.RunsScored ?? 0) (@(nonStriker?.BallsFaced ?? 0))</div>
+                </div>
+            </div>
+
+            var bowler = innings.BowlingScorecard.FirstOrDefault(b => b.PlayerId == innings.CurrentBowlerId);
+
+            <div class="bowler-info-card">
+                <div>
+                    <div class="player-label">Bowler</div>
+                    <div class="player-name" style="font-weight:600;">@(bowler?.PlayerName ?? "—")</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-weight:700;">
+                        @(bowler?.OversDisplay ?? "0")-@(bowler?.Maidens ?? 0)-@(bowler?.RunsConceded ?? 0)-@(bowler?.Wickets ?? 0)
+                    </div>
+                </div>
+            </div>
+
+            @if (_needsNewBowler)
+            {
+                <div class="card" style="border:2px solid var(--warning);">
+                    <h3>🎯 Select New Bowler</h3>
+                    <div class="form-group mt-1">
+                        <select class="form-control" @bind="_selectBowlerId">
+                            <option value="">Select bowler</option>
+                            @foreach (var p in _availableBowlers)
+                            {
+                                <option value="@p.Id">@p.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <button class="btn btn-primary btn-block" @onclick="ConfirmNewBowler">Confirm Bowler</button>
+                </div>
+            }
+            else if (_needsNewBatter)
+            {
+                <div class="card" style="border:2px solid var(--warning);">
+                    <h3>🏏 Select New Batter</h3>
+                    <div class="form-group mt-1">
+                        <select class="form-control" @bind="_selectBatterId">
+                            <option value="">Select batter</option>
+                            @foreach (var pid in innings.YetToBat)
+                            {
+                                var pName = _allPlayers.FirstOrDefault(p => p.Id == pid)?.Name ?? pid;
+                                <option value="@pid">@pName</option>
+                            }
+                        </select>
+                    </div>
+                    <button class="btn btn-primary btn-block" @onclick="ConfirmNewBatter">Confirm Batter</button>
+                </div>
+            }
+            else
+            {
+                <div class="run-buttons-grid">
+                    <button class="run-btn" @onclick="() => ScoreRuns(0)">0</button>
+                    <button class="run-btn" @onclick="() => ScoreRuns(1)">1</button>
+                    <button class="run-btn" @onclick="() => ScoreRuns(2)">2</button>
+                    <button class="run-btn" @onclick="() => ScoreRuns(3)">3</button>
+                    <button class="run-btn four" @onclick="() => ScoreRuns(4)">4</button>
+                    <button class="run-btn" @onclick="() => ScoreRuns(5)">5</button>
+                    <button class="run-btn six" @onclick="() => ScoreRuns(6)">6</button>
+                    <button class="run-btn" @onclick="() => ScoreRuns(7)">7</button>
+                </div>
+
+                <div class="extra-buttons-grid">
+                    <button class="extra-btn" @onclick="ScoreWide">Wide</button>
+                    <button class="extra-btn" @onclick="ScoreNoBall">No Ball</button>
+                    <button class="extra-btn" @onclick="() => _showByeModal = true">Bye</button>
+                    <button class="extra-btn" @onclick="() => _showLegByeModal = true">Leg Bye</button>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="wicket-btn" @onclick="() => _showWicketModal = true">🔴 Wicket</button>
+                    <button class="undo-btn" @onclick="UndoBall" disabled="@(innings.AllBalls.Count == 0)">↩ Undo</button>
+                </div>
+            }
+
+            <div class="flex-gap mt-1">
+                <button class="btn btn-warning btn-sm" @onclick="() => _showEndInningsConfirm = true">End Innings</button>
+                <button class="btn btn-danger btn-sm" @onclick="() => _showEndMatchConfirm = true">End Match</button>
+                <button class="btn btn-secondary btn-sm" @onclick="() => _showScorecardModal = true">Scorecard</button>
+            </div>
+        }
+    }
+</div>
+
+<Modal IsVisible="_showWicketModal" Title="🔴 Wicket" OnClose="() => _showWicketModal = false">
+    <div class="form-group">
+        <label class="form-label">Wicket Type</label>
+        <select class="form-control" @bind="_wicketType">
+            <option value="@WicketType.Bowled">Bowled</option>
+            <option value="@WicketType.Caught">Caught</option>
+            <option value="@WicketType.LBW">LBW</option>
+            <option value="@WicketType.RunOut">Run Out</option>
+            <option value="@WicketType.Stumped">Stumped</option>
+            <option value="@WicketType.HitWicket">Hit Wicket</option>
+            <option value="@WicketType.Retired">Retired</option>
+        </select>
+    </div>
+
+    @if (_wicketType == WicketType.RunOut)
+    {
+        <div class="form-group">
+            <label class="form-label">Who is out?</label>
+            <select class="form-control" @bind="_dismissedPlayerId">
+                <option value="@(_match?.CurrentInnings?.CurrentStrikerId)">
+                    Striker: @(_match?.CurrentInnings?.BattingScorecard.FirstOrDefault(b => b.PlayerId == _match.CurrentInnings.CurrentStrikerId)?.PlayerName)
+                </option>
+                <option value="@(_match?.CurrentInnings?.CurrentNonStrikerId)">
+                    Non-Striker: @(_match?.CurrentInnings?.BattingScorecard.FirstOrDefault(b => b.PlayerId == _match.CurrentInnings.CurrentNonStrikerId)?.PlayerName)
+                </option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Runs before wicket</label>
+            <select class="form-control" @bind="_runsOnWicketBall">
+                @for (int i = 0; i <= 3; i++)
+                {
+                    <option value="@i">@i</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (_wicketType == WicketType.Caught || _wicketType == WicketType.Stumped || _wicketType == WicketType.RunOut)
+    {
+        <div class="form-group">
+            <label class="form-label">Fielder optional</label>
+            <select class="form-control" @bind="_fielderId">
+                <option value="">None</option>
+                @foreach (var p in _bowlingTeamPlayersList)
+                {
+                    <option value="@p.Id">@p.Name</option>
+                }
+            </select>
+        </div>
+    }
+
+    <button class="btn btn-danger btn-block btn-lg" @onclick="ConfirmWicket">Confirm Wicket</button>
+</Modal>
+
+<Modal IsVisible="_showByeModal" Title="Bye Runs" OnClose="() => _showByeModal = false">
+    <div class="form-group">
+        <label class="form-label">Bye runs</label>
+        <div class="run-buttons-grid">
+            @for (int i = 1; i <= 4; i++)
+            {
+                var r = i;
+                <button class="run-btn" @onclick="() => ScoreBye(r)">@r</button>
+            }
+        </div>
+    </div>
+</Modal>
+
+<Modal IsVisible="_showLegByeModal" Title="Leg Bye Runs" OnClose="() => _showLegByeModal = false">
+    <div class="form-group">
+        <label class="form-label">Leg bye runs</label>
+        <div class="run-buttons-grid">
+            @for (int i = 1; i <= 4; i++)
+            {
+                var r = i;
+                <button class="run-btn" @onclick="() => ScoreLegBye(r)">@r</button>
+            }
+        </div>
+    </div>
+</Modal>
+
+<Modal IsVisible="_showScorecardModal" Title="Scorecard" OnClose="() => _showScorecardModal = false">
+    @if (_match != null)
+    {
+        @if (_match.FirstInnings != null)
+        {
+            <ScorecardView Innings="_match.FirstInnings" TeamName="@GetBattingTeamName(1)" />
+        }
+
+        @if (_match.SecondInnings != null)
+        {
+            <div class="divider"></div>
+            <ScorecardView Innings="_match.SecondInnings" TeamName="@GetBattingTeamName(2)" />
+        }
+    }
+</Modal>
+
+<ConfirmDialog IsVisible="_showEndInningsConfirm" Title="End Innings?" Icon="🔄"
+               Message="Are you sure you want to end the current innings?"
+               ConfirmText="End Innings" ConfirmButtonClass="btn-warning"
+               OnConfirm="EndInnings" OnCancel="() => _showEndInningsConfirm = false" />
+
+<ConfirmDialog IsVisible="_showEndMatchConfirm" Title="End Match?" Icon="🏁"
+               Message="Are you sure you want to end this match?"
+               ConfirmText="End Match" ConfirmButtonClass="btn-danger"
+               OnConfirm="EndMatch" OnCancel="() => _showEndMatchConfirm = false" />
+
+@code {
+    private Match? _match;
+    private bool _showWicketModal, _showByeModal, _showLegByeModal, _showScorecardModal;
+    private bool _showEndInningsConfirm, _showEndMatchConfirm;
+    private bool _needsNewBatter, _needsNewBowler;
+    private WicketType _wicketType = WicketType.Bowled;
+    private string _dismissedPlayerId = "", _fielderId = "", _selectBatterId = "", _selectBowlerId = "";
+    private int _runsOnWicketBall;
+    private string _error = "", _newStrikerId = "", _newNonStrikerId = "", _newBowlerId = "";
+    private List<Player> _allPlayers = new();
+    private List<Player> _bowlingTeamPlayersList = new();
+    private List<Player> _availableBowlers = new();
+    private List<Player> _secondInningsBatters = new();
+    private List<Player> _secondInningsBowlers = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LiveMatchState.LoadLiveMatchAsync();
+        _match = LiveMatchState.CurrentMatch;
+        LiveMatchState.OnStateChanged += OnStateChanged;
+        _allPlayers = await PlayerService.GetAllPlayersAsync();
+        UpdateDerivedState();
+    }
+
+    private void OnStateChanged()
+    {
+        _match = LiveMatchState.CurrentMatch;
+        UpdateDerivedState();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateDerivedState()
+    {
+        if (_match == null) return;
+
+        var innings = _match.CurrentInnings;
+        if (innings == null) return;
+
+        _needsNewBowler = LiveMatchState.IsOverComplete() && !LiveMatchState.IsInningsComplete();
+
+        _needsNewBatter = !_needsNewBowler && innings.YetToBat.Any() &&
+            innings.BattingScorecard.Count(b => b.IsCurrentBatter && !b.IsOut) < 2 &&
+            innings.TotalWickets < GetBattingTeamCount() - 1;
+
+        var bowlingTeamIds = innings.BowlingTeamId == _match.TeamAId
+            ? _match.TeamAPlayerIds
+            : _match.TeamBPlayerIds;
+
+        _bowlingTeamPlayersList = _allPlayers.Where(p => bowlingTeamIds.Contains(p.Id)).ToList();
+
+        var lastBowlerId = innings.Overs.LastOrDefault()?.BowlerId;
+
+        _availableBowlers = _bowlingTeamPlayersList
+            .Where(p => p.Id != lastBowlerId)
+            .ToList();
+
+        if (_match.Status == MatchStatus.InningsBreak && _match.SecondInnings != null)
+        {
+            var battingIds = _match.SecondInnings.BattingTeamId == _match.TeamAId
+                ? _match.TeamAPlayerIds
+                : _match.TeamBPlayerIds;
+
+            var bowlingIds = _match.SecondInnings.BowlingTeamId == _match.TeamAId
+                ? _match.TeamAPlayerIds
+                : _match.TeamBPlayerIds;
+
+            _secondInningsBatters = _allPlayers.Where(p => battingIds.Contains(p.Id)).ToList();
+            _secondInningsBowlers = _allPlayers.Where(p => bowlingIds.Contains(p.Id)).ToList();
+        }
+
+        if (LiveMatchState.IsInningsComplete() && !_needsNewBatter && !_needsNewBowler)
+        {
+            _ = AutoEndInnings();
+        }
+    }
+
+    private async Task AutoEndInnings()
+    {
+        var innings = _match?.CurrentInnings;
+        if (innings == null || innings.IsCompleted) return;
+
+        await LiveMatchState.EndInnings();
+
+        if (_match?.Status == MatchStatus.Completed)
+        {
+            Toast.Success(_match.Result.ResultSummary);
+        }
+    }
+
+    private int GetBattingTeamCount()
+    {
+        if (_match == null) return 11;
+
+        var innings = _match.CurrentInnings;
+        if (innings == null) return 11;
+
+        return innings.BattingTeamId == _match.TeamAId
+            ? _match.TeamAPlayerIds.Count
+            : _match.TeamBPlayerIds.Count;
+    }
+
+    private async Task ScoreRuns(int runs)
+    {
+        await LiveMatchState.RecordBall(runs);
+        CheckInningsComplete();
+    }
+
+    private async Task ScoreWide()
+    {
+        await LiveMatchState.RecordBall(0, ExtraType.Wide, 0);
+    }
+
+    private async Task ScoreNoBall()
+    {
+        await LiveMatchState.RecordBall(0, ExtraType.NoBall);
+    }
+
+    private async Task ScoreBye(int runs)
+    {
+        _showByeModal = false;
+        await LiveMatchState.RecordBall(runs, ExtraType.Bye, runs);
+    }
+
+    private async Task ScoreLegBye(int runs)
+    {
+        _showLegByeModal = false;
+        await LiveMatchState.RecordBall(runs, ExtraType.LegBye, runs);
+    }
+
+    private async Task ConfirmWicket()
+    {
+        var innings = _match?.CurrentInnings;
+        if (innings == null) return;
+
+        var dismissed = _wicketType == WicketType.RunOut
+            ? _dismissedPlayerId
+            : innings.CurrentStrikerId;
+
+        if (string.IsNullOrEmpty(dismissed))
+            dismissed = innings.CurrentStrikerId;
+
+        int runs = _wicketType == WicketType.RunOut ? _runsOnWicketBall : 0;
+
+        await LiveMatchState.RecordBall(
+            runs,
+            isWicket: true,
+            wicketType: _wicketType,
+            dismissedPlayerId: dismissed,
+            fielderId: string.IsNullOrEmpty(_fielderId) ? null : _fielderId);
+
+        _showWicketModal = false;
+        _wicketType = WicketType.Bowled;
+        _dismissedPlayerId = "";
+        _fielderId = "";
+        _runsOnWicketBall = 0;
+
+        CheckInningsComplete();
+    }
+
+    private async Task ConfirmNewBatter()
+    {
+        if (string.IsNullOrEmpty(_selectBatterId)) return;
+
+        var name = _allPlayers.FirstOrDefault(p => p.Id == _selectBatterId)?.Name ?? "";
+        await LiveMatchState.SetNewBatter(_selectBatterId, name);
+
+        _selectBatterId = "";
+        _needsNewBatter = false;
+    }
+
+    private async Task ConfirmNewBowler()
+    {
+        if (string.IsNullOrEmpty(_selectBowlerId)) return;
+
+        var name = _allPlayers.FirstOrDefault(p => p.Id == _selectBowlerId)?.Name ?? "";
+        await LiveMatchState.SetNewBowler(_selectBowlerId, name);
+
+        _selectBowlerId = "";
+        _needsNewBowler = false;
+    }
+
+    private async Task UndoBall()
+    {
+        await LiveMatchState.UndoLastBall();
+        Toast.Warning("Last ball undone");
+    }
+
+    private void CheckInningsComplete()
+    {
+    }
+
+    private async Task EndInnings()
+    {
+        _showEndInningsConfirm = false;
+        await LiveMatchState.EndInnings();
+        Toast.Success("Innings ended");
+    }
+
+    private async Task EndMatch()
+    {
+        _showEndMatchConfirm = false;
+        await LiveMatchState.EndMatch();
+
+        if (_match != null)
+            Toast.Success(_match.Result.ResultSummary);
+    }
+
+    private async Task StartSecondInnings()
+    {
+        _error = "";
+
+        if (string.IsNullOrEmpty(_newStrikerId) ||
+            string.IsNullOrEmpty(_newNonStrikerId) ||
+            string.IsNullOrEmpty(_newBowlerId))
+        {
+            _error = "Please select all opening players.";
+            return;
+        }
+
+        if (_newStrikerId == _newNonStrikerId)
+        {
+            _error = "Striker and non-striker must be different.";
+            return;
+        }
+
+        var strikerName = _allPlayers.FirstOrDefault(p => p.Id == _newStrikerId)?.Name ?? "";
+        var nonStrikerName = _allPlayers.FirstOrDefault(p => p.Id == _newNonStrikerId)?.Name ?? "";
+        var bowlerName = _allPlayers.FirstOrDefault(p => p.Id == _newBowlerId)?.Name ?? "";
+
+        var innings = _match!.SecondInnings!;
+
+        innings.CurrentStrikerId = _newStrikerId;
+        innings.CurrentNonStrikerId = _newNonStrikerId;
+        innings.CurrentBowlerId = _newBowlerId;
+
+        innings.BattingScorecard = new List<BattingScore>
+        {
+            new() { PlayerId = _newStrikerId, PlayerName = strikerName, IsCurrentBatter = true, IsOnStrike = true, BattingOrder = 1 },
+            new() { PlayerId = _newNonStrikerId, PlayerName = nonStrikerName, IsCurrentBatter = true, IsOnStrike = false, BattingOrder = 2 }
+        };
+
+        innings.BowlingScorecard = new List<BowlingScore>
+        {
+            new() { PlayerId = _newBowlerId, PlayerName = bowlerName }
+        };
+
+        innings.YetToBat.Remove(_newStrikerId);
+        innings.YetToBat.Remove(_newNonStrikerId);
+
+        _match.Status = MatchStatus.InProgress;
+
+        LiveMatchState.SetMatch(_match);
+        await MatchService.SaveLiveMatchAsync(_match);
+
+        Toast.Success("2nd Innings started! 🏏");
+    }
+
+    private string GetBattingTeamName(int inningsNum)
+    {
+        if (_match == null) return "";
+
+        if (inningsNum == 1)
+            return _match.BattingFirstTeamId == _match.TeamAId ? _match.TeamAName : _match.TeamBName;
+
+        return _match.BattingFirstTeamId == _match.TeamAId ? _match.TeamBName : _match.TeamAName;
+    }
+
+    private string GetBowlingTeamName(int inningsNum)
+    {
+        if (_match == null) return "";
+
+        if (inningsNum == 1)
+            return _match.BowlingFirstTeamId == _match.TeamAId ? _match.TeamAName : _match.TeamBName;
+
+        return _match.BowlingFirstTeamId == _match.TeamAId ? _match.TeamBName : _match.TeamAName;
+    }
+
+    private string GetCurrentBattingTeamName()
+    {
+        if (_match?.CurrentInnings == null) return "";
+
+        return _match.CurrentInnings.BattingTeamId == _match.TeamAId
+            ? _match.TeamAName
+            : _match.TeamBName;
+    }
+
+    private void GoToNewMatch()
+    {
+        Nav.NavigateTo("/newmatch");
+    }
+
+    public void Dispose()
+    {
+        LiveMatchState.OnStateChanged -= OnStateChanged;
+    }
+}

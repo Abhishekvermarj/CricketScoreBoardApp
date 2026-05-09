@@ -1,0 +1,141 @@
+@page "/"
+@inject ITeamService TeamService
+@inject IPlayerService PlayerService
+@inject IMatchService MatchService
+@inject LiveMatchState LiveMatch
+@inject NavigationManager Nav
+
+<div class="page-container">
+    <div class="page-header">
+        <h1>🏏 Cricket Scoreboard</h1>
+        <p class="subtitle">Track every ball, every run, every wicket</p>
+    </div>
+
+    @if (_liveMatch != null)
+    {
+        <div class="card" style="border: 2px solid var(--danger); cursor: pointer;" @onclick="GoToLiveMatch">
+            <div class="card-header">
+                <h3>🔴 Live Match</h3>
+                <span class="badge badge-live">LIVE</span>
+            </div>
+            <div class="card-body">
+                <div class="flex-between">
+                    <span style="font-weight:700;">@_liveMatch.TeamAName</span>
+                    <span>vs</span>
+                    <span style="font-weight:700;">@_liveMatch.TeamBName</span>
+                </div>
+                @if (_liveMatch.CurrentInnings != null)
+                {
+                    <div style="text-align:center; margin-top:0.5rem;">
+                        <span style="font-size:1.5rem; font-weight:800;">@_liveMatch.CurrentInnings.ScoreDisplay</span>
+                        <span style="color:var(--accent); margin-left:0.5rem;">(@_liveMatch.CurrentInnings.OversDisplay ov)</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">@_teamCount</div>
+            <div class="stat-label">Teams</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">@_playerCount</div>
+            <div class="stat-label">Players</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">@_matchCount</div>
+            <div class="stat-label">Matches</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">@_completedCount</div>
+            <div class="stat-label">Completed</div>
+        </div>
+    </div>
+
+    <div class="section-label">Quick Actions</div>
+    <div class="quick-actions">
+        <a href="/newmatch" class="quick-action-card">
+            <span class="action-icon">🏏</span>
+            <span class="action-label">New Match</span>
+        </a>
+        <a href="/teams" class="quick-action-card">
+            <span class="action-icon">👥</span>
+            <span class="action-label">Teams</span>
+        </a>
+        <a href="/players" class="quick-action-card">
+            <span class="action-icon">🧑</span>
+            <span class="action-label">Players</span>
+        </a>
+        <a href="/records" class="quick-action-card">
+            <span class="action-icon">🏆</span>
+            <span class="action-label">Records</span>
+        </a>
+    </div>
+
+    @if (_recentMatches.Any())
+    {
+        <div class="section-label mt-2">Recent Matches</div>
+        @foreach (var match in _recentMatches.Take(3))
+        {
+            <div class="match-card" @onclick='() => Nav.NavigateTo($"/matchdetail/{match.Id}")'>
+                <div class="match-header">
+                    <span class="match-title">@match.Title</span>
+                    <span class="match-date">@match.CreatedAt.ToString("MMM dd")</span>
+                </div>
+                <div class="match-teams">
+                    <div class="team-score">
+                        <div class="t-name">@match.TeamAName</div>
+                        @if (match.FirstInnings != null)
+                        {
+                            var aInnings = match.BattingFirstTeamId == match.TeamAId ? match.FirstInnings : match.SecondInnings;
+                            if (aInnings != null)
+                            {
+                                <div class="t-score">@aInnings.ScoreDisplay</div>
+                                <div class="t-overs">(@aInnings.OversDisplay)</div>
+                            }
+                        }
+                    </div>
+                    <span class="vs-text">VS</span>
+                    <div class="team-score">
+                        <div class="t-name">@match.TeamBName</div>
+                        @if (match.FirstInnings != null)
+                        {
+                            var bInnings = match.BattingFirstTeamId == match.TeamBId ? match.FirstInnings : match.SecondInnings;
+                            if (bInnings != null)
+                            {
+                                <div class="t-score">@bInnings.ScoreDisplay</div>
+                                <div class="t-overs">(@bInnings.OversDisplay)</div>
+                            }
+                        }
+                    </div>
+                </div>
+                <div class="match-result">@match.Result.ResultSummary</div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private int _teamCount, _playerCount, _matchCount, _completedCount;
+    private List<Match> _recentMatches = new();
+    private Match? _liveMatch;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var teams = await TeamService.GetAllTeamsAsync();
+        var players = await PlayerService.GetAllPlayersAsync();
+        var matches = await MatchService.GetAllMatchesAsync();
+
+        _teamCount = teams.Count;
+        _playerCount = players.Count;
+        _matchCount = matches.Count;
+        _completedCount = matches.Count(m => m.Status == MatchStatus.Completed);
+        _recentMatches = matches.OrderByDescending(m => m.CreatedAt).ToList();
+
+        _liveMatch = await MatchService.LoadLiveMatchAsync();
+    }
+
+    private void GoToLiveMatch() => Nav.NavigateTo("/livematch");
+}

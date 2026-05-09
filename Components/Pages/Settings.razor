@@ -1,0 +1,120 @@
+@page "/settings"
+@inject ISettingsService SettingsService
+@inject IMatchService MatchService
+@inject IToastService Toast
+@inject NavigationManager Nav
+
+<div class="page-container">
+    <div class="page-header">
+        <h1>⚙️ Settings</h1>
+    </div>
+
+    <div class="card" style="padding:0;">
+        <div class="settings-item">
+            <div>
+                <div class="settings-label">Dark Mode</div>
+                <div class="settings-desc">Use dark theme</div>
+            </div>
+            <div class="toggle-switch @(_settings.DarkMode ? "active" : "")" @onclick="ToggleDarkMode"></div>
+        </div>
+        <div class="settings-item">
+            <div>
+                <div class="settings-label">Super Over</div>
+                <div class="settings-desc">Enable super over on tie</div>
+            </div>
+            <div class="toggle-switch @(_settings.SuperOverEnabled ? "active" : "")" @onclick="ToggleSuperOver"></div>
+        </div>
+        <div class="settings-item">
+            <div>
+                <div class="settings-label">Default Overs</div>
+                <div class="settings-desc">Default overs for new match</div>
+            </div>
+            <select class="form-control" style="width:80px;" @bind="_settings.DefaultOvers" @bind:after="SaveSettings">
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+            </select>
+        </div>
+        <div class="settings-item">
+            <div>
+                <div class="settings-label">Vibration</div>
+                <div class="settings-desc">Vibrate on scoring events</div>
+            </div>
+            <div class="toggle-switch @(_settings.VibrationEnabled ? "active" : "")" @onclick="ToggleVibration"></div>
+        </div>
+    </div>
+
+    <div class="section-label mt-2">Navigation</div>
+    <div class="card" style="padding:0;">
+        <a href="/teams" class="settings-item" style="text-decoration:none;color:inherit;">
+            <div class="settings-label">👥 Teams</div>
+            <span>→</span>
+        </a>
+        <a href="/players" class="settings-item" style="text-decoration:none;color:inherit;">
+            <div class="settings-label">🧑 Players</div>
+            <span>→</span>
+        </a>
+        <a href="/records" class="settings-item" style="text-decoration:none;color:inherit;">
+            <div class="settings-label">🏆 Player Records</div>
+            <span>→</span>
+        </a>
+    </div>
+
+    <div class="section-label mt-2">Data</div>
+    <div class="card" style="padding:0;">
+        <div class="settings-item">
+            <div>
+                <div class="settings-label">Clear Live Match</div>
+                <div class="settings-desc">Remove current live match data</div>
+            </div>
+            <button class="btn btn-danger btn-sm" @onclick="ClearLiveMatch">Clear</button>
+        </div>
+    </div>
+
+    <div style="text-align:center; margin-top:2rem; color:var(--text-muted); font-size:0.8rem;">
+        <p>Cricket Scoreboard App v@(_settings.AppVersion)</p>
+        <p>Built with .NET 10 MAUI Blazor Hybrid</p>
+        <p>No database — Pure JSON storage 📄</p>
+    </div>
+</div>
+
+@code {
+    private AppSettings _settings = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await SettingsService.GetSettingsAsync();
+    }
+
+    private async Task ToggleDarkMode()
+    {
+        _settings.DarkMode = !_settings.DarkMode;
+        await SaveSettings();
+    }
+
+    private async Task ToggleSuperOver()
+    {
+        _settings.SuperOverEnabled = !_settings.SuperOverEnabled;
+        await SaveSettings();
+    }
+
+    private async Task ToggleVibration()
+    {
+        _settings.VibrationEnabled = !_settings.VibrationEnabled;
+        await SaveSettings();
+    }
+
+    private async Task SaveSettings()
+    {
+        await SettingsService.SaveSettingsAsync(_settings);
+        Toast.Success("Settings saved");
+    }
+
+    private async Task ClearLiveMatch()
+    {
+        await MatchService.ClearLiveMatchAsync();
+        Toast.Success("Live match data cleared");
+    }
+}

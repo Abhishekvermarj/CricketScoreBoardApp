@@ -1,0 +1,175 @@
+@page "/teams"
+@inject ITeamService TeamService
+@inject IPlayerService PlayerService
+@inject IToastService Toast
+
+<div class="page-container">
+    <div class="page-header">
+        <div class="flex-between">
+            <h1>👥 Teams</h1>
+            <button class="btn btn-primary btn-sm" @onclick="ShowAddTeam">+ Add</button>
+        </div>
+    </div>
+
+    @if (!_teams.Any())
+    {
+        <EmptyState Emoji="👥" Title="No teams yet"
+                    Message="Create your first team to get started."
+                    ShowAction="true" ActionText="Add Team" OnAction="ShowAddTeam" />
+    }
+    else
+    {
+        @foreach (var team in _teams)
+        {
+            <div class="card">
+                <div class="card-header">
+                    <h3>
+                        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:@team.Color;"></span>
+                        @team.Name
+                        @if (!string.IsNullOrEmpty(team.ShortName))
+                        {
+                            <span style="color:var(--text-muted);font-size:0.8rem;">(@team.ShortName)</span>
+                        }
+                    </h3>
+                    <span class="badge badge-role">@team.PlayerIds.Count players</span>
+                </div>
+                <div class="card-body">
+                    @if (_teamPlayers.ContainsKey(team.Id) && _teamPlayers[team.Id].Any())
+                    {
+                        <div class="chip-group">
+                            @foreach (var player in _teamPlayers[team.Id])
+                            {
+                                <span class="chip">@player.Name</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p style="color:var(--text-muted);">No players assigned</p>
+                    }
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => ShowEditTeam(team)">✏️ Edit</button>
+                    <button class="btn btn-danger btn-sm" @onclick="() => ShowDeleteConfirm(team)">🗑️ Delete</button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<Modal IsVisible="_showModal" Title="@(_editingTeam == null ? "Add Team" : "Edit Team")" OnClose="CloseModal">
+    <div class="form-group">
+        <label class="form-label">Team Name</label>
+        <input class="form-control" @bind="_teamName" placeholder="e.g. Mumbai Indians" />
+        @if (!string.IsNullOrEmpty(_nameError))
+        {
+            <div class="validation-message">@_nameError</div>
+        }
+    </div>
+    <div class="form-group">
+        <label class="form-label">Short Name</label>
+        <input class="form-control" @bind="_teamShortName" maxlength="5" placeholder="e.g. MI" />
+    </div>
+    <div class="form-group">
+        <label class="form-label">Team Color</label>
+        <input type="color" class="form-control" @bind="_teamColor" style="height:48px;padding:4px;" />
+    </div>
+    <button class="btn btn-primary btn-block" @onclick="SaveTeam">
+        @(_editingTeam == null ? "Add Team" : "Save Changes")
+    </button>
+</Modal>
+
+<ConfirmDialog IsVisible="_showDeleteConfirm" Title="Delete Team?"
+               Message="@($"Are you sure you want to delete {_deletingTeam?.Name}? This cannot be undone.")"
+               Icon="🗑️" ConfirmText="Delete" OnConfirm="DeleteTeam" OnCancel="() => _showDeleteConfirm = false" />
+
+@code {
+    private List<Team> _teams = new();
+    private Dictionary<string, List<Player>> _teamPlayers = new();
+    private bool _showModal, _showDeleteConfirm;
+    private Team? _editingTeam, _deletingTeam;
+    private string _teamName = "", _teamShortName = "", _teamColor = "#1a73e8", _nameError = "";
+
+    protected override async Task OnInitializedAsync() => await LoadTeams();
+
+    private async Task LoadTeams()
+    {
+        _teams = await TeamService.GetAllTeamsAsync();
+        _teamPlayers.Clear();
+        foreach (var team in _teams)
+        {
+            _teamPlayers[team.Id] = await PlayerService.GetPlayersByTeamIdAsync(team.Id);
+        }
+    }
+
+    private void ShowAddTeam()
+    {
+        _editingTeam = null;
+        _teamName = "";
+        _teamShortName = "";
+        _teamColor = "#1a73e8";
+        _nameError = "";
+        _showModal = true;
+    }
+
+    private void ShowEditTeam(Team team)
+    {
+        _editingTeam = team;
+        _teamName = team.Name;
+        _teamShortName = team.ShortName;
+        _teamColor = team.Color;
+        _nameError = "";
+        _showModal = true;
+    }
+
+    private async Task SaveTeam()
+    {
+        if (string.IsNullOrWhiteSpace(_teamName))
+        {
+            _nameError = "Team name is required";
+            return;
+        }
+
+        if (_editingTeam == null)
+        {
+            var team = new Team
+            {
+                Name = _teamName.Trim(),
+                ShortName = _teamShortName.Trim().ToUpper(),
+                Color = _teamColor
+            };
+            await TeamService.AddTeamAsync(team);
+            Toast.Success($"Team '{team.Name}' added!");
+        }
+        else
+        {
+            _editingTeam.Name = _teamName.Trim();
+            _editingTeam.ShortName = _teamShortName.Trim().ToUpper();
+            _editingTeam.Color = _teamColor;
+            await TeamService.UpdateTeamAsync(_editingTeam);
+            Toast.Success($"Team '{_editingTeam.Name}' updated!");
+        }
+
+        _showModal = false;
+        await LoadTeams();
+    }
+
+    private void ShowDeleteConfirm(Team team)
+    {
+        _deletingTeam = team;
+        _showDeleteConfirm = true;
+    }
+
+    private async Task DeleteTeam()
+    {
+        if (_deletingTeam != null)
+        {
+            await TeamService.DeleteTeamAsync(_deletingTeam.Id);
+            Toast.Success($"Team '{_deletingTeam.Name}' deleted");
+        }
+        _showDeleteConfirm = false;
+        await LoadTeams();
+    }
+
+    private void CloseModal() => _showModal = false;
+}

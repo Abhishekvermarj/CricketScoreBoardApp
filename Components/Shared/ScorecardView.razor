@@ -1,0 +1,87 @@
+@if (Innings != null)
+{
+    <div>
+        <h3 class="mb-1">@TeamName — @Innings.ScoreDisplay (@Innings.OversDisplay ov)</h3>
+
+        <div class="section-label">Batting</div>
+        <div style="overflow-x:auto;">
+            <table class="scorecard-table">
+                <thead>
+                    <tr>
+                        <th>Batter</th>
+                        <th>R</th>
+                        <th>B</th>
+                        <th>4s</th>
+                        <th>6s</th>
+                        <th>SR</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in Innings.BattingScorecard)
+                    {
+                        <tr>
+                            <td class="player-name-col">
+                                <div>@b.PlayerName @(b.IsCurrentBatter && !b.IsOut ? "*" : "")</div>
+                                <div class="dismissal @(b.IsOut ? "" : "not-out")">@b.DismissalText</div>
+                            </td>
+                            <td style="font-weight:700;">@b.RunsScored</td>
+                            <td>@b.BallsFaced</td>
+                            <td>@b.Fours</td>
+                            <td>@b.Sixes</td>
+                            <td>@b.StrikeRate</td>
+                        </tr>
+                    }
+                    <tr class="extras-row">
+                        <td>Extras</td>
+                        <td colspan="5">@Innings.Extras (w @Innings.Wides, nb @Innings.NoBalls, b @Innings.Byes, lb @Innings.LegByes)</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td>Total</td>
+                        <td colspan="5">@Innings.ScoreDisplay (@Innings.OversDisplay ov)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        @if (Innings.FallOfWickets.Any())
+        {
+            <div class="mt-1" style="font-size:0.75rem;color:var(--text-muted);">
+                <strong>Fall of wickets:</strong> @string.Join(", ", Innings.FallOfWickets)
+            </div>
+        }
+
+        <div class="section-label mt-2">Bowling</div>
+        <div style="overflow-x:auto;">
+            <table class="scorecard-table">
+                <thead>
+                    <tr>
+                        <th>Bowler</th>
+                        <th>O</th>
+                        <th>M</th>
+                        <th>R</th>
+                        <th>W</th>
+                        <th>Eco</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in Innings.BowlingScorecard)
+                    {
+                        <tr>
+                            <td class="player-name-col">@b.PlayerName</td>
+                            <td>@b.OversDisplay</td>
+                            <td>@b.Maidens</td>
+                            <td>@b.RunsConceded</td>
+                            <td style="font-weight:700;">@b.Wickets</td>
+                            <td>@b.Economy</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Innings? Innings { get; set; }
+    [Parameter] public string TeamName { get; set; } = "";
+}

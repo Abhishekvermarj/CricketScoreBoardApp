@@ -1,0 +1,91 @@
+@page "/history"
+@inject IMatchService MatchService
+@inject ITeamService TeamService
+@inject NavigationManager Nav
+
+<div class="page-container">
+    <div class="page-header">
+        <h1>📋 Match History</h1>
+    </div>
+
+    <div class="form-group">
+        <select class="form-control" @bind="_filterTeamId">
+            <option value="">All Teams</option>
+            @foreach (var team in _teams)
+            {
+                <option value="@team.Id">@team.Name</option>
+            }
+        </select>
+    </div>
+
+    @if (!FilteredMatches.Any())
+    {
+        <EmptyState Emoji="📋" Title="No matches yet"
+                    Message="Play a match and it will appear here." />
+    }
+    else
+    {
+        @foreach (var match in FilteredMatches)
+        {
+            <div class="match-card" @onclick='() => Nav.NavigateTo($"/matchdetail/{match.Id}")'>
+                <div class="match-header">
+                    <span class="match-title">@match.Title</span>
+                    <span class="match-date">@match.CreatedAt.ToString("MMM dd, yyyy")</span>
+                </div>
+                <div class="match-teams">
+                    <div class="team-score">
+                        <div class="t-name">@match.TeamAName</div>
+                        @{
+                            var aInn = match.BattingFirstTeamId == match.TeamAId ? match.FirstInnings : match.SecondInnings;
+                        }
+                        @if (aInn != null)
+                        {
+                            <div class="t-score">@aInn.ScoreDisplay</div>
+                            <div class="t-overs">(@aInn.OversDisplay)</div>
+                        }
+                    </div>
+                    <span class="vs-text">VS</span>
+                    <div class="team-score">
+                        <div class="t-name">@match.TeamBName</div>
+                        @{
+                            var bInn = match.BattingFirstTeamId == match.TeamBId ? match.FirstInnings : match.SecondInnings;
+                        }
+                        @if (bInn != null)
+                        {
+                            <div class="t-score">@bInn.ScoreDisplay</div>
+                            <div class="t-overs">(@bInn.OversDisplay)</div>
+                        }
+                    </div>
+                </div>
+                <div class="match-result">
+                    @if (match.Status == MatchStatus.Completed)
+                    {
+                        @match.Result.ResultSummary
+                    }
+                    else
+                    {
+                        <span class="badge @(match.Status == MatchStatus.InProgress ? "badge-live" : "badge-abandoned")">
+                            @match.StatusDisplay
+                        </span>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<Match> _matches = new();
+    private List<Team> _teams = new();
+    private string _filterTeamId = "";
+
+    private IEnumerable<Match> FilteredMatches => string.IsNullOrEmpty(_filterTeamId)
+        ? _matches
+        : _matches.Where(m => m.TeamAId == _filterTeamId || m.TeamBId == _filterTeamId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _matches = (await MatchService.GetAllMatchesAsync()).OrderByDescending(m => m.CreatedAt).ToList();
+        _teams = await TeamService.GetAllTeamsAsync();
+    }
+}

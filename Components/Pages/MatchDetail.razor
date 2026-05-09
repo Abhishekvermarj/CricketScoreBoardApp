@@ -1,0 +1,92 @@
+@page "/matchdetail/{MatchId}"
+@inject IMatchService MatchService
+@inject NavigationManager Nav
+
+<div class="page-container">
+    @if (_match == null)
+    {
+        <EmptyState Emoji="📋" Title="Match not found" Message="This match doesn't exist." />
+    }
+    else
+    {
+        <div class="page-header">
+            <h1>📋 Match Summary</h1>
+            <p class="subtitle">@_match.Title</p>
+        </div>
+
+        <!-- Result -->
+        <div class="card" style="text-align:center; border:2px solid var(--accent);">
+            <div style="font-size:0.8rem; color:var(--text-muted);">@_match.CreatedAt.ToString("dd MMM yyyy, hh:mm tt")</div>
+            <div style="font-size:1.1rem; font-weight:800; color:var(--accent); margin:0.75rem 0;">
+                @_match.Result.ResultSummary
+            </div>
+            <span class="badge @(_match.Status == MatchStatus.Completed ? "badge-completed" : _match.Status == MatchStatus.Abandoned ? "badge-abandoned" : "badge-live")">
+                @_match.StatusDisplay
+            </span>
+        </div>
+
+        <!-- Scores -->
+        <div class="flex-between" style="margin:1rem 0;">
+            <div style="text-align:center; flex:1;">
+                <div style="font-weight:700;">@_match.TeamAName</div>
+                @{
+                    var aInn = _match.BattingFirstTeamId == _match.TeamAId ? _match.FirstInnings : _match.SecondInnings;
+                }
+                @if (aInn != null)
+                {
+                    <div style="font-size:2rem; font-weight:800;">@aInn.ScoreDisplay</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted);">(@aInn.OversDisplay ov)</div>
+                }
+            </div>
+            <div style="font-weight:700; color:var(--text-muted);">VS</div>
+            <div style="text-align:center; flex:1;">
+                <div style="font-weight:700;">@_match.TeamBName</div>
+                @{
+                    var bInn = _match.BattingFirstTeamId == _match.TeamBId ? _match.FirstInnings : _match.SecondInnings;
+                }
+                @if (bInn != null)
+                {
+                    <div style="font-size:2rem; font-weight:800;">@bInn.ScoreDisplay</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted);">(@bInn.OversDisplay ov)</div>
+                }
+            </div>
+        </div>
+
+        <!-- Toss Info -->
+        <div style="text-align:center; font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">
+            Toss: @(_match.TossWinnerTeamId == _match.TeamAId ? _match.TeamAName : _match.TeamBName) won and chose to @_match.TossDecision
+        </div>
+
+        <!-- Tabs -->
+        <div class="tab-header">
+            <button class="tab-btn @(_tab == 0 ? "active" : "")" @onclick="() => _tab = 0">1st Innings</button>
+            <button class="tab-btn @(_tab == 1 ? "active" : "")" @onclick="() => _tab = 1">2nd Innings</button>
+        </div>
+
+        @if (_tab == 0 && _match.FirstInnings != null)
+        {
+            <ScorecardView Innings="_match.FirstInnings"
+                TeamName="@(_match.BattingFirstTeamId == _match.TeamAId ? _match.TeamAName : _match.TeamBName)" />
+        }
+        else if (_tab == 1 && _match.SecondInnings != null)
+        {
+            <ScorecardView Innings="_match.SecondInnings"
+                TeamName="@(_match.BattingFirstTeamId == _match.TeamAId ? _match.TeamBName : _match.TeamAName)" />
+        }
+
+        <button class="btn btn-secondary btn-block mt-2" @onclick='() => Nav.NavigateTo("/history")'>
+            ← Back to History
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public string MatchId { get; set; } = "";
+    private Match? _match;
+    private int _tab;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _match = await MatchService.GetMatchByIdAsync(MatchId);
+    }
+}

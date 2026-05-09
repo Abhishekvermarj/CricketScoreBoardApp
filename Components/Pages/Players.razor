@@ -1,0 +1,230 @@
+@page "/players"
+@inject IPlayerService PlayerService
+@inject ITeamService TeamService
+@inject IToastService Toast
+
+<div class="page-container">
+    <div class="page-header">
+        <div class="flex-between">
+            <h1>🧑 Players</h1>
+            <button class="btn btn-primary btn-sm" @onclick="ShowAddPlayer">+ Add</button>
+        </div>
+    </div>
+
+    @if (!_players.Any())
+    {
+        <EmptyState Emoji="🧑" Title="No players yet"
+                    Message="Add players and assign them to teams."
+                    ShowAction="true" ActionText="Add Player" OnAction="ShowAddPlayer" />
+    }
+    else
+    {
+        <div class="form-group">
+            <select class="form-control" @bind="_filterTeamId">
+                <option value="">All Teams</option>
+                @foreach (var team in _teams)
+                {
+                    <option value="@team.Id">@team.Name</option>
+                }
+                <option value="unassigned">Unassigned</option>
+            </select>
+        </div>
+
+        @foreach (var player in FilteredPlayers)
+        {
+            <div class="player-list-item">
+                <div class="player-info">
+                    <div class="player-name">@player.Name</div>
+                    <div class="player-detail">
+                        @player.RoleDisplay · @GetTeamName(player.TeamId)
+                    </div>
+                </div>
+                <div class="player-actions">
+                    <button class="btn btn-secondary btn-icon btn-sm" @onclick="() => ShowEditPlayer(player)">✏️</button>
+                    <button class="btn btn-danger btn-icon btn-sm" @onclick="() => ShowDeleteConfirm(player)">🗑️</button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<Modal IsVisible="_showModal" Title="@(_editingPlayer == null ? "Add Player" : "Edit Player")" OnClose="CloseModal">
+    <div class="form-group">
+        <label class="form-label">Player Name</label>
+        <input class="form-control" @bind="_playerName" placeholder="e.g. Virat Kohli" />
+        @if (!string.IsNullOrEmpty(_nameError))
+        {
+            <div class="validation-message">@_nameError</div>
+        }
+    </div>
+    <div class="form-group">
+        <label class="form-label">Role</label>
+        <select class="form-control" @bind="_playerRole">
+            @foreach (var role in Enum.GetValues<PlayerRole>())
+            {
+                <option value="@role">@role</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Batting Style</label>
+        <select class="form-control" @bind="_battingStyle">
+            <option value="@BattingStyle.RightHanded">Right Handed</option>
+            <option value="@BattingStyle.LeftHanded">Left Handed</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Bowling Style</label>
+        <select class="form-control" @bind="_bowlingStyle">
+            @foreach (var style in Enum.GetValues<BowlingStyle>())
+            {
+                <option value="@style">@FormatEnum(style.ToString())</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Team</label>
+        <select class="form-control" @bind="_playerTeamId">
+            <option value="">Unassigned</option>
+            @foreach (var team in _teams)
+            {
+                <option value="@team.Id">@team.Name</option>
+            }
+        </select>
+    </div>
+    <button class="btn btn-primary btn-block" @onclick="SavePlayer">
+        @(_editingPlayer == null ? "Add Player" : "Save Changes")
+    </button>
+</Modal>
+
+<ConfirmDialog IsVisible="_showDeleteConfirm" Title="Delete Player?"
+               Message="@($"Are you sure you want to delete {_deletingPlayer?.Name}?")"
+               Icon="🗑️" ConfirmText="Delete" OnConfirm="DeletePlayer" OnCancel="() => _showDeleteConfirm = false" />
+
+@code {
+    private List<Player> _players = new();
+    private List<Team> _teams = new();
+    private bool _showModal, _showDeleteConfirm;
+    private Player? _editingPlayer, _deletingPlayer;
+    private string _playerName = "", _playerTeamId = "", _nameError = "", _filterTeamId = "";
+    private PlayerRole _playerRole = PlayerRole.Batter;
+    private BattingStyle _battingStyle = BattingStyle.RightHanded;
+    private BowlingStyle _bowlingStyle = BowlingStyle.None;
+
+    private IEnumerable<Player> FilteredPlayers => string.IsNullOrEmpty(_filterTeamId)
+        ? _players
+        : _filterTeamId == "unassigned"
+            ? _players.Where(p => string.IsNullOrEmpty(p.TeamId))
+            : _players.Where(p => p.TeamId == _filterTeamId);
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _players = await PlayerService.GetAllPlayersAsync();
+        _teams = await TeamService.GetAllTeamsAsync();
+    }
+
+    private string GetTeamName(string? teamId)
+    {
+        if (string.IsNullOrEmpty(teamId)) return "Unassigned";
+        return _teams.FirstOrDefault(t => t.Id == teamId)?.Name ?? "Unknown";
+    }
+
+    private void ShowAddPlayer()
+    {
+        _editingPlayer = null;
+        _playerName = "";
+        _playerRole = PlayerRole.Batter;
+        _battingStyle = BattingStyle.RightHanded;
+        _bowlingStyle = BowlingStyle.None;
+        _playerTeamId = "";
+        _nameError = "";
+        _showModal = true;
+    }
+
+    private void ShowEditPlayer(Player player)
+    {
+        _editingPlayer = player;
+        _playerName = player.Name;
+        _playerRole = player.Role;
+        _battingStyle = player.BattingStyle;
+        _bowlingStyle = player.BowlingStyle;
+        _playerTeamId = player.TeamId ?? "";
+        _nameError = "";
+        _showModal = true;
+    }
+
+    private async Task SavePlayer()
+    {
+        if (string.IsNullOrWhiteSpace(_playerName))
+        {
+            _nameError = "Player name is required";
+            return;
+        }
+
+        if (_editingPlayer == null)
+        {
+            var player = new Player
+            {
+                Name = _playerName.Trim(),
+                Role = _playerRole,
+                BattingStyle = _battingStyle,
+                BowlingStyle = _bowlingStyle,
+                TeamId = string.IsNullOrEmpty(_playerTeamId) ? null : _playerTeamId
+            };
+            await PlayerService.AddPlayerAsync(player);
+
+            // Add to team
+            if (!string.IsNullOrEmpty(_playerTeamId))
+                await TeamService.AddPlayerToTeamAsync(_playerTeamId, player.Id);
+
+            Toast.Success($"Player '{player.Name}' added!");
+        }
+        else
+        {
+            // Remove from old team
+            if (!string.IsNullOrEmpty(_editingPlayer.TeamId) && _editingPlayer.TeamId != _playerTeamId)
+                await TeamService.RemovePlayerFromTeamAsync(_editingPlayer.TeamId, _editingPlayer.Id);
+
+            _editingPlayer.Name = _playerName.Trim();
+            _editingPlayer.Role = _playerRole;
+            _editingPlayer.BattingStyle = _battingStyle;
+            _editingPlayer.BowlingStyle = _bowlingStyle;
+            _editingPlayer.TeamId = string.IsNullOrEmpty(_playerTeamId) ? null : _playerTeamId;
+            await PlayerService.UpdatePlayerAsync(_editingPlayer);
+
+            // Add to new team
+            if (!string.IsNullOrEmpty(_playerTeamId))
+                await TeamService.AddPlayerToTeamAsync(_playerTeamId, _editingPlayer.Id);
+
+            Toast.Success($"Player '{_editingPlayer.Name}' updated!");
+        }
+
+        _showModal = false;
+        await LoadData();
+    }
+
+    private void ShowDeleteConfirm(Player player)
+    {
+        _deletingPlayer = player;
+        _showDeleteConfirm = true;
+    }
+
+    private async Task DeletePlayer()
+    {
+        if (_deletingPlayer != null)
+        {
+            if (!string.IsNullOrEmpty(_deletingPlayer.TeamId))
+                await TeamService.RemovePlayerFromTeamAsync(_deletingPlayer.TeamId, _deletingPlayer.Id);
+            await PlayerService.DeletePlayerAsync(_deletingPlayer.Id);
+            Toast.Success($"Player '{_deletingPlayer.Name}' deleted");
+        }
+        _showDeleteConfirm = false;
+        await LoadData();
+    }
+
+    private void CloseModal() => _showModal = false;
+
+    private string FormatEnum(string val) => System.Text.RegularExpressions.Regex.Replace(val, "(\\B[A-Z])", " $1");
+}

@@ -1,0 +1,119 @@
+@page "/records"
+@inject IRecordService RecordService
+
+<div class="page-container">
+    <div class="page-header">
+        <h1>🏆 Player Records</h1>
+    </div>
+
+    <div class="tab-header">
+        <button class="tab-btn @(_tab == 0 ? "active" : "")" @onclick="() => _tab = 0">Batting</button>
+        <button class="tab-btn @(_tab == 1 ? "active" : "")" @onclick="() => _tab = 1">Bowling</button>
+    </div>
+
+    @if (!_records.Any())
+    {
+        <EmptyState Emoji="🏆" Title="No records yet"
+                    Message="Complete some matches to see player records." />
+    }
+    else if (_tab == 0)
+    {
+        <!-- Batting Records -->
+        @foreach (var r in _records.OrderByDescending(r => r.TotalRuns))
+        {
+            <div class="record-card">
+                <div class="record-header">
+                    <div>
+                        <div class="record-name">@r.PlayerName</div>
+                        <div style="font-size:0.75rem;color:var(--text-muted);">@r.TeamName</div>
+                    </div>
+                    <span class="badge badge-role">@r.TotalMatches matches</span>
+                </div>
+                <div class="record-grid">
+                    <div class="record-stat">
+                        <div class="r-value">@r.TotalRuns</div>
+                        <div class="r-label">Runs</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.HighestScoreDisplay</div>
+                        <div class="r-label">Highest</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.BattingAverage</div>
+                        <div class="r-label">Average</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.StrikeRate</div>
+                        <div class="r-label">SR</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.TotalFours</div>
+                        <div class="r-label">4s</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.TotalSixes</div>
+                        <div class="r-label">6s</div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <!-- Bowling Records -->
+        @foreach (var r in _records.Where(r => r.TotalWickets > 0).OrderByDescending(r => r.TotalWickets))
+        {
+            <div class="record-card">
+                <div class="record-header">
+                    <div>
+                        <div class="record-name">@r.PlayerName</div>
+                        <div style="font-size:0.75rem;color:var(--text-muted);">@r.TeamName</div>
+                    </div>
+                    <span class="badge badge-role">@r.TotalMatches matches</span>
+                </div>
+                <div class="record-grid">
+                    <div class="record-stat">
+                        <div class="r-value">@r.TotalWickets</div>
+                        <div class="r-label">Wickets</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.BestBowling</div>
+                        <div class="r-label">Best</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.BowlingAverage</div>
+                        <div class="r-label">Average</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.EconomyRate</div>
+                        <div class="r-label">Economy</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.TotalMaidens</div>
+                        <div class="r-label">Maidens</div>
+                    </div>
+                    <div class="record-stat">
+                        <div class="r-value">@r.TotalRunsConceded</div>
+                        <div class="r-label">Runs</div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (!_records.Any(r => r.TotalWickets > 0))
+        {
+            <EmptyState Emoji="🎯" Title="No bowling records"
+                        Message="No wickets taken yet across completed matches." />
+        }
+    }
+</div>
+
+@code {
+    private List<PlayerRecord> _records = new();
+    private int _tab;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _records = await RecordService.GetAllPlayerRecordsAsync();
+    }
+}

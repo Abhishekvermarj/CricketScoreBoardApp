@@ -1,0 +1,381 @@
+@page "/newmatch"
+@inject ITeamService TeamService
+@inject IPlayerService PlayerService
+@inject IMatchService MatchService
+@inject ISettingsService SettingsService
+@inject LiveMatchState LiveMatch
+@inject NavigationManager Nav
+@inject IToastService Toast
+
+<div class="page-container">
+    <div class="page-header">
+        <h1>🏏 New Match</h1>
+        <p class="subtitle">Setup a new cricket match</p>
+    </div>
+
+    @if (_step == 1)
+    {
+        <!-- Step 1: Basic Setup -->
+        <div class="card">
+            <h3 class="mb-1">Match Details</h3>
+            <div class="form-group">
+                <label class="form-label">Match Title</label>
+                <input class="form-control" @bind="_matchTitle" placeholder="e.g. Weekend League - Match 1" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Total Overs</label>
+                <input type="number" class="form-control" @bind="_totalOvers" min="1" max="50" />
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="mb-1">Select Teams</h3>
+            <div class="form-group">
+                <label class="form-label">Team A</label>
+                <select class="form-control" @bind="_teamAId">
+                    <option value="">Select Team A</option>
+                    @foreach (var team in _teams)
+                    {
+                        <option value="@team.Id">@team.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Team B</label>
+                <select class="form-control" @bind="_teamBId">
+                    <option value="">Select Team B</option>
+                    @foreach (var team in _teams.Where(t => t.Id != _teamAId))
+                    {
+                        <option value="@team.Id">@team.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="validation-message" style="margin-bottom:1rem;">@_error</div>
+        }
+
+        <button class="btn btn-primary btn-block btn-lg" @onclick="GoToStep2">
+            Next: Select Players →
+        </button>
+    }
+    else if (_step == 2)
+    {
+        <!-- Step 2: Player Selection -->
+        <div class="card">
+            <h3 class="mb-1">@_teamAName Players</h3>
+            <p class="subtitle mb-1">Select players for @_teamAName</p>
+            @foreach (var player in _teamAPlayers)
+            {
+                <div class="player-select-item @(_selectedTeamAPlayerIds.Contains(player.Id) ? "selected" : "")"
+                     @onclick="() => ToggleTeamAPlayer(player.Id)">
+                    <div class="select-radio"></div>
+                    <div>
+                        <div style="font-weight:600;">@player.Name</div>
+                        <div style="font-size:0.75rem;color:var(--text-muted);">@player.RoleDisplay</div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <h3 class="mb-1">@_teamBName Players</h3>
+            <p class="subtitle mb-1">Select players for @_teamBName</p>
+            @foreach (var player in _teamBPlayers)
+            {
+                <div class="player-select-item @(_selectedTeamBPlayerIds.Contains(player.Id) ? "selected" : "")"
+                     @onclick="() => ToggleTeamBPlayer(player.Id)">
+                    <div class="select-radio"></div>
+                    <div>
+                        <div style="font-weight:600;">@player.Name</div>
+                        <div style="font-size:0.75rem;color:var(--text-muted);">@player.RoleDisplay</div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="validation-message" style="margin-bottom:1rem;">@_error</div>
+        }
+
+        <div class="flex-gap">
+            <button class="btn btn-secondary btn-lg" @onclick="() => _step = 1">← Back</button>
+            <button class="btn btn-primary btn-lg" style="flex:1;" @onclick="GoToStep3">Next: Toss →</button>
+        </div>
+    }
+    else if (_step == 3)
+    {
+        <!-- Step 3: Toss -->
+        <div class="card">
+            <h3 class="mb-1">🪙 Toss</h3>
+            <div class="form-group">
+                <label class="form-label">Toss Winner</label>
+                <select class="form-control" @bind="_tossWinnerId">
+                    <option value="">Select toss winner</option>
+                    <option value="@_teamAId">@_teamAName</option>
+                    <option value="@_teamBId">@_teamBName</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Decision</label>
+                <div class="flex-gap">
+                    <button class="btn @(_tossDecision == TossDecision.Bat ? "btn-primary" : "btn-secondary") btn-lg"
+                            style="flex:1;" @onclick="() => _tossDecision = TossDecision.Bat">
+                        🏏 Bat
+                    </button>
+                    <button class="btn @(_tossDecision == TossDecision.Bowl ? "btn-primary" : "btn-secondary") btn-lg"
+                            style="flex:1;" @onclick="() => _tossDecision = TossDecision.Bowl">
+                        🎯 Bowl
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="validation-message" style="margin-bottom:1rem;">@_error</div>
+        }
+
+        <div class="flex-gap">
+            <button class="btn btn-secondary btn-lg" @onclick="() => _step = 2">← Back</button>
+            <button class="btn btn-primary btn-lg" style="flex:1;" @onclick="GoToStep4">Next: Opening →</button>
+        </div>
+    }
+    else if (_step == 4)
+    {
+        <!-- Step 4: Opening Batters and Bowler -->
+        <div class="card">
+            <h3 class="mb-1">Opening Batters (@_battingTeamName)</h3>
+            <div class="form-group">
+                <label class="form-label">Striker</label>
+                <select class="form-control" @bind="_strikerId">
+                    <option value="">Select striker</option>
+                    @foreach (var player in _battingTeamPlayers)
+                    {
+                        <option value="@player.Id">@player.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Non-Striker</label>
+                <select class="form-control" @bind="_nonStrikerId">
+                    <option value="">Select non-striker</option>
+                    @foreach (var player in _battingTeamPlayers.Where(p => p.Id != _strikerId))
+                    {
+                        <option value="@player.Id">@player.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="mb-1">Opening Bowler (@_bowlingTeamName)</h3>
+            <div class="form-group">
+                <label class="form-label">Bowler</label>
+                <select class="form-control" @bind="_bowlerId">
+                    <option value="">Select bowler</option>
+                    @foreach (var player in _bowlingTeamPlayers)
+                    {
+                        <option value="@player.Id">@player.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="validation-message" style="margin-bottom:1rem;">@_error</div>
+        }
+
+        <div class="flex-gap">
+            <button class="btn btn-secondary btn-lg" @onclick="() => _step = 3">← Back</button>
+            <button class="btn btn-primary btn-lg" style="flex:1;" @onclick="StartMatch">🏏 Start Match</button>
+        </div>
+    }
+</div>
+
+@code {
+    private int _step = 1;
+    private List<Team> _teams = new();
+    private string _matchTitle = "", _teamAId = "", _teamBId = "", _error = "";
+    private int _totalOvers = 20;
+    private string _teamAName = "", _teamBName = "";
+    private List<Player> _teamAPlayers = new(), _teamBPlayers = new();
+    private List<string> _selectedTeamAPlayerIds = new(), _selectedTeamBPlayerIds = new();
+    private string _tossWinnerId = "";
+    private TossDecision _tossDecision = TossDecision.Bat;
+    private string _battingTeamName = "", _bowlingTeamName = "";
+    private string _battingTeamId = "", _bowlingTeamId = "";
+    private List<Player> _battingTeamPlayers = new(), _bowlingTeamPlayers = new();
+    private string _strikerId = "", _nonStrikerId = "", _bowlerId = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _teams = await TeamService.GetAllTeamsAsync();
+        var settings = await SettingsService.GetSettingsAsync();
+        _totalOvers = settings.DefaultOvers;
+    }
+
+    private async Task GoToStep2()
+    {
+        _error = "";
+        if (string.IsNullOrEmpty(_teamAId) || string.IsNullOrEmpty(_teamBId))
+        {
+            _error = "Please select both teams.";
+            return;
+        }
+        if (_teamAId == _teamBId)
+        {
+            _error = "Team A and Team B cannot be the same.";
+            return;
+        }
+        if (_totalOvers <= 0)
+        {
+            _error = "Overs must be greater than 0.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_matchTitle))
+        {
+            var teamA = _teams.First(t => t.Id == _teamAId);
+            var teamB = _teams.First(t => t.Id == _teamBId);
+            _matchTitle = $"{teamA.Name} vs {teamB.Name}";
+        }
+
+        _teamAName = _teams.First(t => t.Id == _teamAId).Name;
+        _teamBName = _teams.First(t => t.Id == _teamBId).Name;
+        _teamAPlayers = await PlayerService.GetPlayersByTeamIdAsync(_teamAId);
+        _teamBPlayers = await PlayerService.GetPlayersByTeamIdAsync(_teamBId);
+        _selectedTeamAPlayerIds = _teamAPlayers.Select(p => p.Id).ToList();
+        _selectedTeamBPlayerIds = _teamBPlayers.Select(p => p.Id).ToList();
+        _step = 2;
+    }
+
+    private void ToggleTeamAPlayer(string id)
+    {
+        if (_selectedTeamAPlayerIds.Contains(id)) _selectedTeamAPlayerIds.Remove(id);
+        else _selectedTeamAPlayerIds.Add(id);
+    }
+
+    private void ToggleTeamBPlayer(string id)
+    {
+        if (_selectedTeamBPlayerIds.Contains(id)) _selectedTeamBPlayerIds.Remove(id);
+        else _selectedTeamBPlayerIds.Add(id);
+    }
+
+    private void GoToStep3()
+    {
+        _error = "";
+        if (_selectedTeamAPlayerIds.Count < 2)
+        {
+            _error = $"{_teamAName} needs at least 2 players.";
+            return;
+        }
+        if (_selectedTeamBPlayerIds.Count < 2)
+        {
+            _error = $"{_teamBName} needs at least 2 players.";
+            return;
+        }
+        _step = 3;
+    }
+
+    private void GoToStep4()
+    {
+        _error = "";
+        if (string.IsNullOrEmpty(_tossWinnerId))
+        {
+            _error = "Please select toss winner.";
+            return;
+        }
+
+        _battingTeamId = _tossDecision == TossDecision.Bat ? _tossWinnerId :
+            (_tossWinnerId == _teamAId ? _teamBId : _teamAId);
+        _bowlingTeamId = _battingTeamId == _teamAId ? _teamBId : _teamAId;
+        _battingTeamName = _battingTeamId == _teamAId ? _teamAName : _teamBName;
+        _bowlingTeamName = _bowlingTeamId == _teamAId ? _teamAName : _teamBName;
+
+        _battingTeamPlayers = _battingTeamId == _teamAId
+            ? _teamAPlayers.Where(p => _selectedTeamAPlayerIds.Contains(p.Id)).ToList()
+            : _teamBPlayers.Where(p => _selectedTeamBPlayerIds.Contains(p.Id)).ToList();
+        _bowlingTeamPlayers = _bowlingTeamId == _teamAId
+            ? _teamAPlayers.Where(p => _selectedTeamAPlayerIds.Contains(p.Id)).ToList()
+            : _teamBPlayers.Where(p => _selectedTeamBPlayerIds.Contains(p.Id)).ToList();
+
+        _step = 4;
+    }
+
+    private async Task StartMatch()
+    {
+        _error = "";
+        if (string.IsNullOrEmpty(_strikerId))
+        {
+            _error = "Please select striker.";
+            return;
+        }
+        if (string.IsNullOrEmpty(_nonStrikerId))
+        {
+            _error = "Please select non-striker.";
+            return;
+        }
+        if (_strikerId == _nonStrikerId)
+        {
+            _error = "Striker and non-striker must be different.";
+            return;
+        }
+        if (string.IsNullOrEmpty(_bowlerId))
+        {
+            _error = "Please select opening bowler.";
+            return;
+        }
+
+        var strikerName = _battingTeamPlayers.First(p => p.Id == _strikerId).Name;
+        var nonStrikerName = _battingTeamPlayers.First(p => p.Id == _nonStrikerId).Name;
+        var bowlerName = _bowlingTeamPlayers.First(p => p.Id == _bowlerId).Name;
+
+        var match = new Match
+        {
+            Title = _matchTitle,
+            TeamAId = _teamAId,
+            TeamBId = _teamBId,
+            TeamAName = _teamAName,
+            TeamBName = _teamBName,
+            TeamAPlayerIds = _selectedTeamAPlayerIds,
+            TeamBPlayerIds = _selectedTeamBPlayerIds,
+            TotalOvers = _totalOvers,
+            TossWinnerTeamId = _tossWinnerId,
+            TossDecision = _tossDecision,
+            BattingFirstTeamId = _battingTeamId,
+            BowlingFirstTeamId = _bowlingTeamId,
+            Status = MatchStatus.InProgress,
+            CurrentInningsNumber = 1,
+            FirstInnings = new Innings
+            {
+                InningsNumber = 1,
+                BattingTeamId = _battingTeamId,
+                BowlingTeamId = _bowlingTeamId,
+                CurrentStrikerId = _strikerId,
+                CurrentNonStrikerId = _nonStrikerId,
+                CurrentBowlerId = _bowlerId,
+                BattingScorecard = new List<BattingScore>
+                {
+                    new() { PlayerId = _strikerId, PlayerName = strikerName, IsCurrentBatter = true, IsOnStrike = true, BattingOrder = 1 },
+                    new() { PlayerId = _nonStrikerId, PlayerName = nonStrikerName, IsCurrentBatter = true, IsOnStrike = false, BattingOrder = 2 }
+                },
+                BowlingScorecard = new List<BowlingScore>
+                {
+                    new() { PlayerId = _bowlerId, PlayerName = bowlerName }
+                },
+                YetToBat = _battingTeamPlayers
+                    .Where(p => p.Id != _strikerId && p.Id != _nonStrikerId)
+                    .Select(p => p.Id).ToList()
+            }
+        };
+
+        LiveMatch.SetMatch(match);
+        await MatchService.SaveLiveMatchAsync(match);
+        Toast.Success("Match started! 🏏");
+        Nav.NavigateTo("/livematch");
+    }
+}
