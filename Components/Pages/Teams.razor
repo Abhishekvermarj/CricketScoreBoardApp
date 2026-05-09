@@ -1,6 +1,5 @@
 @page "/teams"
 @inject ITeamService TeamService
-@inject IPlayerService PlayerService
 @inject IToastService Toast
 
 <div class="page-container">
@@ -31,22 +30,9 @@
                             <span style="color:var(--text-muted);font-size:0.8rem;">(@team.ShortName)</span>
                         }
                     </h3>
-                    <span class="badge badge-role">@team.PlayerIds.Count players</span>
                 </div>
                 <div class="card-body">
-                    @if (_teamPlayers.ContainsKey(team.Id) && _teamPlayers[team.Id].Any())
-                    {
-                        <div class="chip-group">
-                            @foreach (var player in _teamPlayers[team.Id])
-                            {
-                                <span class="chip">@player.Name</span>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <p style="color:var(--text-muted);">No players assigned</p>
-                    }
+                    <p style="color:var(--text-muted);font-size:0.9rem;">Players are selected during match setup</p>
                 </div>
                 <div class="card-footer">
                     <button class="btn btn-secondary btn-sm" @onclick="() => ShowEditTeam(team)">✏️ Edit</button>
@@ -85,7 +71,6 @@
 
 @code {
     private List<Team> _teams = new();
-    private Dictionary<string, List<Player>> _teamPlayers = new();
     private bool _showModal, _showDeleteConfirm;
     private Team? _editingTeam, _deletingTeam;
     private string _teamName = "", _teamShortName = "", _teamColor = "#1a73e8", _nameError = "";
@@ -95,11 +80,6 @@
     private async Task LoadTeams()
     {
         _teams = await TeamService.GetAllTeamsAsync();
-        _teamPlayers.Clear();
-        foreach (var team in _teams)
-        {
-            _teamPlayers[team.Id] = await PlayerService.GetPlayersByTeamIdAsync(team.Id);
-        }
     }
 
     private void ShowAddTeam()
@@ -150,6 +130,29 @@
             Toast.Success($"Team '{_editingTeam.Name}' updated!");
         }
 
+        _showModal = false;
+        await LoadTeams();
+    }
+
+    private void ShowDeleteConfirm(Team team)
+    {
+        _deletingTeam = team;
+        _showDeleteConfirm = true;
+    }
+
+    private async Task DeleteTeam()
+    {
+        if (_deletingTeam != null)
+        {
+            await TeamService.DeleteTeamAsync(_deletingTeam.Id);
+            Toast.Success($"Team '{_deletingTeam.Name}' deleted");
+        }
+        _showDeleteConfirm = false;
+        await LoadTeams();
+    }
+
+    private void CloseModal() => _showModal = false;
+}
         _showModal = false;
         await LoadTeams();
     }

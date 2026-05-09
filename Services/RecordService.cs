@@ -8,13 +8,11 @@ public class RecordService : IRecordService
 {
     private readonly IMatchService _matchService;
     private readonly IPlayerService _playerService;
-    private readonly ITeamService _teamService;
 
-    public RecordService(IMatchService matchService, IPlayerService playerService, ITeamService teamService)
+    public RecordService(IMatchService matchService, IPlayerService playerService)
     {
         _matchService = matchService;
         _playerService = playerService;
-        _teamService = teamService;
     }
 
     public async Task<List<PlayerRecord>> GetAllPlayerRecordsAsync()
@@ -45,12 +43,11 @@ public class RecordService : IRecordService
 
     private async Task<PlayerRecord> BuildPlayerRecord(Player player, List<Match> completedMatches)
     {
-        var team = player.TeamId != null ? await _teamService.GetTeamByIdAsync(player.TeamId) : null;
         var record = new PlayerRecord
         {
             PlayerId = player.Id,
             PlayerName = player.Name,
-            TeamName = team?.Name ?? "Unassigned"
+            TeamName = "Individual" // Players are now independent, tracked per match
         };
 
         foreach (var match in completedMatches)

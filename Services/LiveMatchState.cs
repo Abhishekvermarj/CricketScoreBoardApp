@@ -8,14 +8,16 @@ public class LiveMatchState
 {
     private readonly IMatchService _matchService;
     private readonly IPlayerService _playerService;
+    private readonly ISettingsService _settingsService;
 
     public Match? CurrentMatch { get; private set; }
     public event Action? OnStateChanged;
 
-    public LiveMatchState(IMatchService matchService, IPlayerService playerService)
+    public LiveMatchState(IMatchService matchService, IPlayerService playerService, ISettingsService settingsService)
     {
         _matchService = matchService;
         _playerService = playerService;
+        _settingsService = settingsService;
     }
 
     public void SetMatch(Match match)
@@ -46,6 +48,7 @@ public class LiveMatchState
         if (innings == null) return;
 
         bool isLegal = extraType != ExtraType.Wide && extraType != ExtraType.NoBall;
+        var settings = await _settingsService.GetSettingsAsync();
 
         var ball = new BallEvent
         {
@@ -70,7 +73,15 @@ public class LiveMatchState
         if (extraType == ExtraType.Wide)
         {
             ball.RunsScored = 0;
-            ball.ExtraRuns = 1 + extraRuns; // 1 for wide + any additional runs
+            // Check if wide ball run is enabled in settings
+            if (settings.WideBallRunEnabled)
+            {
+                ball.ExtraRuns = 1 + extraRuns; // 1 for wide + any additional runs
+            }
+            else
+            {
+                ball.ExtraRuns = extraRuns; // Only additional runs, no automatic 1
+            }
         }
         else if (extraType == ExtraType.NoBall)
         {
@@ -321,6 +332,10 @@ public class LiveMatchState
 
     private void RotateStrike(Innings innings)
     {
+        // In single player batting mode, don't rotate if non-striker is null
+        if (string.IsNullOrEmpty(innings.CurrentNonStrikerId))
+            return;
+
         (innings.CurrentStrikerId, innings.CurrentNonStrikerId) =
             (innings.CurrentNonStrikerId, innings.CurrentStrikerId);
 
