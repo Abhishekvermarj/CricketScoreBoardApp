@@ -1542,3 +1542,140 @@ canvas {
         min-width: 86px;
     }
 }
+/* ==============================
+   MOBILE RESPONSIVE FIXES
+   ============================== */
+
+html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.app-root,
+.app-main,
+.page-container {
+    width: 100%;
+    max-width: 100%;
+}
+
+.page-container {
+    padding-left: clamp(0.75rem, 4vw, 1rem);
+    padding-right: clamp(0.75rem, 4vw, 1rem);
+}
+
+/* Bottom navbar fix */
+.navbar-bottom {
+    overflow-x: auto;
+    justify-content: flex-start;
+    gap: 0.25rem;
+    scrollbar-width: none;
+}
+
+    .navbar-bottom::-webkit-scrollbar {
+        display: none;
+    }
+
+    .navbar-bottom .nav-item {
+        flex: 0 0 auto;
+        min-width: 58px;
+        padding: 0.3rem 0.35rem;
+    }
+
+/* Cards and headers */
+.card-header,
+.match-card .match-header,
+.bowler-info-card {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.flex-between {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Score page */
+.score-big {
+    font-size: clamp(2.4rem, 13vw, 3.5rem);
+}
+
+.score-overs {
+    font-size: clamp(1rem, 5vw, 1.3rem);
+}
+
+.player-info-bar {
+    flex-direction: column;
+}
+
+.run-buttons-grid,
+.extra-buttons-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.run-btn {
+    font-size: clamp(1.1rem, 6vw, 1.5rem);
+    border-radius: 12px;
+}
+
+.extra-btn {
+    font-size: 0.68rem;
+    padding: 0.6rem 0.25rem;
+}
+
+/* Match cards */
+.match-card .match-teams {
+    gap: 0.5rem;
+}
+
+.match-card .team-score {
+    min-width: 0;
+    flex: 1;
+}
+
+    .match-card .team-score .t-name,
+    .match-card .match-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+/* Tables */
+.scorecard-table {
+    min-width: 520px;
+}
+
+.card:has(.scorecard-table) {
+    overflow-x: auto;
+}
+
+/* Very small phones */
+@media (max-width: 380px) {
+    h1 {
+        font-size: 1.35rem;
+    }
+
+    h2 {
+        font-size: 1.15rem;
+    }
+
+    .stats-grid,
+    .quick-actions,
+    .action-buttons {
+        grid-template-columns: 1fr;
+    }
+
+    .run-buttons-grid,
+    .extra-buttons-grid {
+        gap: 0.35rem;
+    }
+
+    .navbar-bottom .nav-item {
+        min-width: 52px;
+        font-size: 0.58rem;
+    }
+
+        .navbar-bottom .nav-item .nav-icon {
+            font-size: 1.1rem;
+        }
+}
